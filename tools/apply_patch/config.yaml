@@ -1,0 +1,4 @@
+tools:
+  apply_patch:
+    signature: "apply_patch"
+    docstring: "Applies the available patch to the source. This is for defensive security research purposes only."

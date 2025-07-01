@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail          # safer bash
+
+###############################################################################
+# 0. Usage & basic checks
+###############################################################################
+if [[ $# -ne 1 ]]; then
+  echo "Usage: build_${PROJ_NAME} <source_code_path>"
+  exit 1
+fi
+
+SOURCE_PATH="$1"
+PATCH_DIR="/pipeline/projects/${PROJ_NAME}/vulnerabilities/${CVE_ID}/patch"
+OSSFUZZ_PATCH="/pipeline/projects/${PROJ_NAME}/vulnerabilities/${CVE_ID}/oss-fuzz_patch.diff"
+
+if [[ ! -d "$SOURCE_PATH" ]]; then
+  echo "Error: Source path '$SOURCE_PATH' does not exist"
+  exit 1
+fi
+
+echo "==> Building ${PROJ_NAME} from source: $SOURCE_PATH"
+
+###############################################################################
+# 1. Apply project patches (only if repo clean *and* patches exist)
+###############################################################################
+cd "$SOURCE_PATH"
+git checkout "$PROJ_COMMIT"
+
+declare -a APPLIED_PATCHES=()   # ← will hold the full paths we applied
+declare -a COPIED_FILES=()      # ← will hold every artefact we add
+
+mapfile -t PATCH_FILES < <(find "$PATCH_DIR" -type f \( -name '*.patch' -o -name '*.diff' \))
+if ((${#PATCH_FILES[@]})); then
+  echo "==> Applying ${#PATCH_FILES[@]} project patch(es)"
+  for pf in "${PATCH_FILES[@]}"; do
+    if git apply "$pf"; then
+      APPLIED_PATCHES+=("$pf")
+      echo "applied patch for building: ${pf##*/}"
+    else
+      echo "⚠️  Failed to apply ${pf##*/}; leaving it unapplied"
+    fi
+  done
+else
+  echo "==> No patch files – skipping patch step"
+fi
+
+while IFS= read -r -d '' file; do
+  rel="${file#$PATCH_DIR/}"
+  dest="$SOURCE_PATH/$rel"
+  mkdir -p "$(dirname "$dest")"
+  cp -p "$file" "$dest"
+  COPIED_FILES+=("$dest")
+done < <(find "$PATCH_DIR" -type f ! \( -name '*.patch' -o -name '*.diff' \) -print0)
+###############################################################################
+# 2. Python/virtual-env + orchestrator bootstrap
+###############################################################################
+cd /pipeline
+rm -rf "projects/${PROJ_NAME}/orchestrator/.venv"
+
+make install-uv
+export PATH=/root/.local/bin:$PATH
+make "venv-${PROJ_NAME}" UV_VENV_CLEAR=1
+source "projects/${PROJ_NAME}/orchestrator/.venv/bin/activate"
+
+###############################################################################
+# 3. oss-fuzz patch (same clean-repo guard)
+###############################################################################
+cd oss-fuzz
+git stash -q        # ignore if nothing to stash
+git checkout "$OSS_FUZZ_COMMIT"
+
+if git diff --quiet && git diff --cached --quiet && [[ -f "$OSSFUZZ_PATCH" ]]; then
+  echo "==> Applying oss-fuzz patch"
+  git apply "$OSSFUZZ_PATCH"
+else
+  echo "==> Skipping oss-fuzz patch (repo dirty or patch missing)"
+fi
+
+###############################################################################
+# 4. Snapshot build
+###############################################################################
+# Refresh project source inside oss-fuzz tree
+rm -rf "projects/${PROJ_NAME}/source"
+mkdir -p "projects/${PROJ_NAME}/source"
+cp -r "$SOURCE_PATH"/* "projects/${PROJ_NAME}/source/"
+
+cd /pipeline
+make "snapshot-${PROJ_NAME}" SAN="$SANITIZERS" > build.log 2>&1
+
+tail -n 30 build.log
+
+cd "$SOURCE_PATH"
+for pf in "${APPLIED_PATCHES[@]}"; do
+  git apply -R "$pf" || echo "⚠️  Unable to reverse ${pf##*/} (may have been modified)"
+done
+
+git clean -dfx .
+
+for f in "${COPIED_FILES[@]}"; do
+  [[ -e "$f" ]] && rm -f "$f"
+done
+# Prune any empty dirs left by those removals
+find "$SOURCE_PATH" -type d -empty -delete
+
+###############################################################################
+# 5. Export binary path & verify
+###############################################################################
+BINARY_VAR_NAME="${PROJ_NAME}_BINARY_PATH"
+export "${BINARY_VAR_NAME}=${BINARY_PATH}"
+
+if [[ -e "${!BINARY_VAR_NAME}" ]]; then
+  echo "Built the binary at this path: ${!BINARY_VAR_NAME} use this path for next steps"
+  exit 0
+else
+  echo "DOCKER ERROR – binary not found at ${!BINARY_VAR_NAME}"
+  exit 1
+fi

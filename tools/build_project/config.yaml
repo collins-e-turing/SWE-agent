@@ -1,0 +1,10 @@
+tools:
+  build_project:
+    signature: "build_project <source_code_path>"
+    docstring: "Build project from source code at the specified path. Returns the path to the generated executable."
+    arguments:
+      - name: source_code_path
+        type: string
+        description: "Path to the project source code directory to build from."
+        required: true
+state_command: "_state_build_project"

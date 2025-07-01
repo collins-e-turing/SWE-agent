@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+
+import io
+import os
+import sys
+import subprocess
+import tempfile
+import argparse
+import shutil
+import time
+import textwrap
+from pathlib import Path
+
+def apply_patch(source_dir, patch_file):
+    """Applies the patch to the source code (equivalent to 'make patch-dav1d')."""
+    print(f"\n=== Applying patch {patch_file} ===")
+    try:
+        result = run_command(
+            ["git", "apply", "--check", patch_file], cwd=source_dir, check=False
+        )
+        if result.returncode != 0:
+            print("Patch cannot be applied cleanly. Test may be inaccurate.")
+            print(f"STDERR: {result.stderr}")
+            return False
+
+        run_command(["git", "apply", patch_file], cwd=source_dir)
+        print("Patch applied successfully")
+        return True
+    except Exception as e:
+        print(f"Error applying patch: {e}")
+        return False
+
+def run_command(cmd, cwd=None, env=None, check=True):
+    """Runs a command and returns its output."""
+    print(f"Running: {' '.join(cmd)}, pwd cwd is {cwd}")
+    result = subprocess.run(
+        cmd, cwd=cwd, env=env, check=False, text=True, capture_output=True
+    )
+
+    if check and result.returncode != 0:
+        print(f"Command failed with exit code {result.returncode}")
+        print(f"STDOUT: {result.stdout}")
+        print(f"STDERR: {result.stderr}")
+        sys.exit(1)
+
+    return result
+
+def main():
+    env = os.environ
+
+    # patch_file = sys.argv[1]
+    patch_file_path = os.path.join(f'/pipeline/projects/{env["PROJ_NAME"]}/vulnerabilities/',
+                                env['CVE_ID'], f'{env["CVE_ID"]}_patch.diff')
+
+    patched = apply_patch("/source", patch_file_path)
+
+    if patched:
+        print("Patched successfully")
+        return 0
+    else:
+        print("Failed to patch the fix")
+        return 1
+
+
+if __name__ == "__main__":
+    main()
