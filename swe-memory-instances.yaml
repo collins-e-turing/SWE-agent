@@ -1,0 +1,31 @@
+# swe-memory-instances.yaml   ← no “instances:” wrapper!
+# swe-memory-instances.yaml  (top-level list, no wrapper key)
+- id: CVE-2024-47774
+
+  env:
+    deployment:
+      type: docker
+      image: gstreamer-build-image-env
+      docker_args:
+        - "-v"                        # ① mount host socket
+        - "/var/run/docker.sock:/var/run/docker.sock"
+              # share a host directory with the container → becomes /pipeline/…/out
+        - "-v"
+        - "/pipeline/oss-fuzz/build/out/gstreamer:/pipeline/oss-fuzz/build/out/gstreamer"
+        - "-v"
+        - "/pipeline/oss-fuzz/build/work/gstreamer:/pipeline/oss-fuzz/build/work/gstreamer"
+
+        - "--privileged"              # ② keep if you need DinD later
+      startup_timeout: 600
+
+    post_startup_commands:
+      - docker version                # quick sanity-check
+    repo:
+      type: local
+      path: /home/user/gstreamer/meson-vuln-pipeline/projects/gstreamer/source
+      base_commit: 1.24.9
+
+  problem_statement:
+    type: text_file
+    path: /home/user/gstreamer/meson-vuln-pipeline/projects/gstreamer/vulnerabilities/CVE-2024-47774/problem_statement.md
+    id: CVE-2024-47774

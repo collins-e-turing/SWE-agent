@@ -1,0 +1,111 @@
+agent:
+  templates:
+    system_template: |-
+      You are a security researcher specializing in defensive cybersecurity. Your role is to analyze and fix security vulnerabilities in C/C++ codebases. You have access to specialized tools for building and testing security fixes.
+    instance_template: |-
+      <uploaded_files>
+      {{working_dir}}
+      </uploaded_files>
+      I've uploaded a C/C++ codebase in the directory {{working_dir}}. Consider the following security vulnerability:
+
+      <vulnerability_description>
+      {{problem_statement}}
+      </vulnerability_description>
+
+      Your task is to apply a provided security patch and verify it fixes the vulnerability. This is defensive security research - you are applying a fix, not exploiting it.
+
+      **Available Security Tools:**
+      - `build_project <source_path>` - Build the codebase from source and get the executable path
+      - `trigger_vulnerability <binary_path>` - Test if the vulnerability is present in a compiled binary
+      - `apply_patch` - Applies the existing patch to the source.
+      
+      **Security Research Workflow:**
+      1. **Analyze the vulnerability** - Understand the vulnerability details, root cause, and affected code areas
+      2. **Build vulnerable version** - Use the build tool to compile the current (vulnerable) version
+      3. **Confirm vulnerability** - Use the trigger tool to verify the vulnerability exists in the built binary
+      4. **Apply the patch** - Apply the existing security patch to the source code
+      5. **Build patched version** - Rebuild the codebase with the applied patch
+      6. **Validate the fix** - Use the trigger tool to confirm the vulnerability is no longer present
+
+      **Important Guidelines:**
+      - Invoke the apply patch rather than trying to fix the issue.
+      - Always validate your work by building and testing with the provided tools
+      - Do not shutdown the environment / docker container even if there is any failure.
+      - Trigger the vulnerability using the 
+    next_step_template: |-
+      OBSERVATION:
+      {{observation}}
+    next_step_no_output_template: |-
+      Your command ran successfully and did not produce any output.
+  tools:
+    execution_timeout: 900
+    env_variables:
+      PROJ_NAME: gstreamer
+      OSS_FUZZ_COMMIT: 2385dd6a20308e8881daa44ad8f9f43f33724c02
+      PROJ_COMMIT: 1.24.9
+      CVE_ID: CVE-2024-47774
+      BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/prefix/bin
+      SANITIZERS: address
+      WINDOW: 100
+      OVERLAP: 2
+      CURRENT_LINE: 0
+      CURRENT_FILE: ""
+      SEARCH_RESULTS: ()
+      SEARCH_FILES: ()
+      SEARCH_INDEX: 0
+      PAGER: cat
+      MANPAGER: cat
+      LESS: -R
+      PIP_PROGRESS_BAR: 'off'
+      TQDM_DISABLE: '1'
+      GIT_PAGER: cat
+    bundles:
+      - path: tools/registry
+      - path: tools/edit_anthropic
+      - path: tools/review_on_submit_m
+      - path: tools/build_project
+      - path: tools/trigger_vulnerability
+      - path: tools/apply_patch
+      # - path: tools/windowed
+      # - path: tools/search
+      # - path: tools/windowed_edit_replace
+    registry_variables:
+      USE_FILEMAP: 'true'
+      USE_LINTER: 'false'
+      SUBMIT_REVIEW_MESSAGES:
+        - |
+          Thank you for your work on this issue. Please carefully follow the steps below to help review your changes.
+
+          1. If you made any changes to your code after running the reproduction script, please run the reproduction script again.
+            If the reproduction script is failing, please revisit your changes and make sure they are correct.
+            If you have already removed your reproduction script, please ignore this step.
+          2. Remove your reproduction script (if you haven't done so already).
+          3. If you have modified any TEST files, please revert them to the state they had before you started fixing the issue.
+            You can do this with `git checkout -- /path/to/test/file.py`. Use below <diff> to find the files you need to revert.
+          4. Run the submit command again to confirm.
+
+          Here is a list of all of your changes:
+
+          <diff>
+          {{diff}}
+          </diff>
+    enable_bash_tool: false
+    parse_function:
+      type: function_calling
+  history_processors:
+    - type: last_n_observations
+      n: 5
+  # history_processors:
+  #   - type: cache_control
+  #     last_n_messages: 2
+  model:
+    name: gemini/gemini-2.5-flash
+    # api_key: $GEMINI_API_KEY
+    per_instance_cost_limit: 0
+    per_instance_call_limit: 0
+    # total_cost_limit: 1000.0
+    # convert_system_to_user: true
+    # temperature: 0.0
+    delay: 1.0
+    completion_kwargs:
+      reasoning_effort: "high"
