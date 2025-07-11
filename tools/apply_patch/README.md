@@ -89,4 +89,4 @@ The vulnerability trigger works by:
 - Only use in isolated test environments
 - Ensure proper memory safety tools (ASAN, Valgrind) are available for detection
 - Do not use on production systems
-- The tool creates temporary files that are cleaned up automatically
+- The tool creates temporary files that are cleaned up automatically# Updated to be more generic - July 11, 2025
