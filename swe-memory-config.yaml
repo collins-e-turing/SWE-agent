@@ -109,3 +109,4 @@ agent:
     delay: 1.0
     completion_kwargs:
       reasoning_effort: "high"
+# Environment fixes - July 15, 2025
