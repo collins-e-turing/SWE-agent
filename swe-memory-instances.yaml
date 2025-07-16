@@ -1,4 +1,6 @@
-# swe-memory-instances.yaml   ← no “instances:” wrapper!
+# swe-memory-instances.yaml   ← no "instances:" wrapper!
+# swe-memory-instances.yaml  (top-level list, no wrapper key)
+- id: cve-2023-37327we-memory-instances.yaml   ← no “instances:” wrapper!
 # swe-memory-instances.yaml  (top-level list, no wrapper key)
 - id: CVE-2024-47774
 
@@ -22,10 +24,10 @@
       - docker version                # quick sanity-check
     repo:
       type: local
-      path: /home/user/gstreamer/meson-vuln-pipeline/projects/gstreamer/source
-      base_commit: 1.24.9
+      path: /home/user/code/main/meson-vuln-pipeline/projects/gstreamer/source
+      base_commit: 670ce68f0683c3900bc3534cd91f1b95199621af
 
   problem_statement:
     type: text_file
-    path: /home/user/gstreamer/meson-vuln-pipeline/projects/gstreamer/vulnerabilities/CVE-2024-47774/problem_statement.md
-    id: CVE-2024-47774
+    path: /home/user/code/main/meson-vuln-pipeline/projects/dav1d/vulnerabilities/gitlab-issue-124/problem_statement.md
+    id: gitlab-issue-124

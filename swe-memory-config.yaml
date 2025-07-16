@@ -31,7 +31,6 @@ agent:
       - Invoke the apply patch rather than trying to fix the issue.
       - Always validate your work by building and testing with the provided tools
       - Do not shutdown the environment / docker container even if there is any failure.
-      - Trigger the vulnerability using the 
     next_step_template: |-
       OBSERVATION:
       {{observation}}
@@ -41,10 +40,10 @@ agent:
     execution_timeout: 900
     env_variables:
       PROJ_NAME: gstreamer
-      OSS_FUZZ_COMMIT: 2385dd6a20308e8881daa44ad8f9f43f33724c02
-      PROJ_COMMIT: 1.24.9
-      CVE_ID: CVE-2024-47774
-      BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/prefix/bin
+      OSS_FUZZ_COMMIT: 9da9625b69f1c147b716a37a41317a81a339a848
+      PROJ_COMMIT: 670ce68f0683c3900bc3534cd91f1b95199621af
+      CVE_ID: cve-2024-37327
+      BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/_builddir
       SANITIZERS: address
       WINDOW: 100
       OVERLAP: 2
@@ -109,4 +108,3 @@ agent:
     delay: 1.0
     completion_kwargs:
       reasoning_effort: "high"
-# Environment fixes - July 15, 2025
