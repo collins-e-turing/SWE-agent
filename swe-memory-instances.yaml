@@ -25,9 +25,9 @@
     repo:
       type: local
       path: /home/user/code/main/meson-vuln-pipeline/projects/gstreamer/source
-      base_commit: 670ce68f0683c3900bc3534cd91f1b95199621af
+      base_commit: 1.24.9
 
   problem_statement:
     type: text_file
-    path: /home/user/code/main/meson-vuln-pipeline/projects/dav1d/vulnerabilities/gitlab-issue-124/problem_statement.md
-    id: gitlab-issue-124
+    path: /home/user/gstreamer/meson-vuln-pipeline/projects/gstreamer/vulnerabilities/CVE-2024-47774/problem_statement.md
+    id: CVE-2024-47774
