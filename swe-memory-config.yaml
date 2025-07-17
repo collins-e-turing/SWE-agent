@@ -31,6 +31,7 @@ agent:
       - Invoke the apply patch rather than trying to fix the issue.
       - Always validate your work by building and testing with the provided tools
       - Do not shutdown the environment / docker container even if there is any failure.
+      - Trigger the vulnerability using the
     next_step_template: |-
       OBSERVATION:
       {{observation}}
@@ -44,7 +45,7 @@ agent:
       PROJ_COMMIT: 1.24.9
       CVE_ID: CVE-2024-47774
       BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/prefix/bin
-      SANITIZERS: address
+      SANITIZERS: undefined
       WINDOW: 100
       OVERLAP: 2
       CURRENT_LINE: 0
