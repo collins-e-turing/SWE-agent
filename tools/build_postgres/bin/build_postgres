@@ -1,0 +1,56 @@
+#!/bin/bash
+set -e
+
+# exec >/pipeline/oss-fuzz/build/out/postgresql/log-info.txt 2>/pipeline/oss-fuzz/build/out/postgresql/log-error.txt
+
+# Check if source path argument is provided
+if [ "$#" -ne 1 ]; then
+    echo "Usage: build_postgres <source_code_path>"
+    exit 1
+fi
+
+SOURCE_PATH="$1"
+
+# Validate source path exists
+if [ ! -d "$SOURCE_PATH" ]; then
+    echo "Error: Source path '$SOURCE_PATH' does not exist"
+    exit 1
+fi
+
+echo "Building postgres from source: $SOURCE_PATH"
+
+cd $SOURCE_PATH
+git checkout $PROJ_COMMIT
+
+cd /pipeline
+
+rm -rf projects/postgres/orchestrator/.venv
+
+make install-uv
+export PATH=/root/.local/bin:$PATH
+make venv-postgres
+. projects/postgres/orchestrator/.venv/bin/activate
+
+## delete if exists
+cd oss-fuzz
+git stash
+git checkout ${OSS_FUZZ_COMMIT}
+git apply /pipeline/projects/postgres/vulnerabilities/${CVE_ID}/oss-fuzz_patch.diff
+
+rm -rf projects/postgresql/source
+cp -r $SOURCE_PATH projects/postgresql/source
+
+cd ..
+
+make snapshot-postgres
+echo $SWE_OUT_DIR
+
+export POSTGRES_BINARY_PATH=$BINARY_PATH
+
+if [[ -d "$POSTGRES_BINARY_PATH" ]]; then
+    echo "Postgres Binary Path: $POSTGRES_BINARY_PATH"
+    exit 0
+else
+    echo "DOCKER ERROR: Binary not found at $POSTGRES_BINARY_PATH"
+    exit 1
+fi
