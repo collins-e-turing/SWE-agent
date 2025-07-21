@@ -28,21 +28,23 @@ rm -rf projects/postgres/orchestrator/.venv
 
 make install-uv
 export PATH=/root/.local/bin:$PATH
-make venv-postgres
+make venv-postgres UV_VENV_CLEAR=1
 . projects/postgres/orchestrator/.venv/bin/activate
 
 ## delete if exists
 cd oss-fuzz
 git stash
 git checkout ${OSS_FUZZ_COMMIT}
-git apply /pipeline/projects/postgres/vulnerabilities/${CVE_ID}/oss-fuzz_patch.diff
+git apply --ignore-whitespace /pipeline/projects/postgres/vulnerabilities/${CVE_ID}/oss-fuzz_patch.diff >/dev/null 2>&1
 
 rm -rf projects/postgresql/source
 cp -r $SOURCE_PATH projects/postgresql/source
 
 cd ..
 
-make snapshot-postgres
+make snapshot-postgres >/pipeline/oss-fuzz/build/out/postgresql/build.log 2>&1 &
+wait $!
+
 echo $SWE_OUT_DIR
 
 export POSTGRES_BINARY_PATH=$BINARY_PATH
