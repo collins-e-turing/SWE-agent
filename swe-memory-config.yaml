@@ -40,25 +40,15 @@ agent:
   tools:
     execution_timeout: 900
     env_variables:
-      PROJ_NAME: gstreamer
-      OSS_FUZZ_COMMIT: 2385dd6a20308e8881daa44ad8f9f43f33724c02
-      PROJ_COMMIT: 1.24.9
-      CVE_ID: CVE-2024-47774
-      BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/prefix/bin
+      PROJ_NAME: qemu
+      OSS_FUZZ_COMMIT: 9da9625b69f1c147b716a37a41317a81a339a848
+      PROJ_COMMIT: d139fe9ad8a27bcc50b4ead77d2f97d191a0e95e
+      CVE_ID: cve-2023-0330
+      BINARY_PATH: /pipeline/oss-fuzz/build/out/qemu/qemu-fuzz-x86_64
       SANITIZERS: address
       WINDOW: 100
       OVERLAP: 2
       CURRENT_LINE: 0
-      CURRENT_FILE: ""
-      SEARCH_RESULTS: ()
-      SEARCH_FILES: ()
-      SEARCH_INDEX: 0
-      PAGER: cat
-      MANPAGER: cat
-      LESS: -R
-      PIP_PROGRESS_BAR: 'off'
-      TQDM_DISABLE: '1'
-      GIT_PAGER: cat
     bundles:
       - path: tools/registry
       - path: tools/edit_anthropic
