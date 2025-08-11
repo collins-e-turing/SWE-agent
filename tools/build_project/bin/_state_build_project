@@ -12,7 +12,8 @@ def main():
     else:
         state = {}
 
-    state["working_dir"] = os.getcwd()
+    # Remove working_dir from state entirely - let SWE-agent use its default
+    state.pop("working_dir", None)
 
     state_path.write_text(json.dumps(state))
 

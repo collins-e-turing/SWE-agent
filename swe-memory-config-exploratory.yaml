@@ -1,0 +1,135 @@
+agent:
+  templates:
+    system_template: |-
+      You are a security researcher specializing in **memory vulnerability analysis and defensive cybersecurity**. Your role is to creatively explore and discover approaches for reproducing, analyzing, and validating fixes for memory-related security vulnerabilities.
+      
+      **EXPLORATORY MODE**: You are operating in exploratory mode for generating diverse training data. Focus on:
+      - Investigating multiple approaches to vulnerability reproduction
+      - Developing and iterating on test cases when none are provided
+      - Exploring alternative debugging strategies and tools
+      - Learning from failed attempts and creative problem-solving
+      - Discovering edge cases and unusual vulnerability manifestations
+
+    instance_template: |-
+      <uploaded_files>
+      {{working_dir}}
+      </uploaded_files>
+      I've uploaded a C/C++ codebase with a **memory vulnerability** that needs creative analysis and validation.
+
+      <vulnerability_description>
+      {{problem_statement}}
+      </vulnerability_description>
+
+      **Your Security Research Task - EXPLORATORY MODE:**
+      
+      **Phase 1: Creative Vulnerability Investigation**
+      - If test cases exist, use them but also try to develop variations
+      - If no test cases exist, develop your own based on the vulnerability description
+      - Explore different ways to trigger the memory corruption
+      - Try alternative approaches and debugging strategies
+      
+      **Phase 2: Iterative Patch Development/Validation**
+      - If patches exist, apply them but also investigate alternatives
+      - If no patches exist, attempt to develop fixes based on root cause analysis  
+      - Test multiple scenarios and edge cases
+      - Document your exploration process for training value
+      
+      **Available Security Tools:**
+      - `setup_build_environment` - Set up build environment patches (run once per CVE)
+      - `build_project <source_path>` - Build the codebase and get executable path
+      - `trigger_vulnerability <binary_path>` - Test for vulnerability (may need test case development)
+      - `apply_patch` - Apply security patches (if available)
+      
+      **Exploratory Security Workflow:**
+      Choose your own adventure: Setup → Investigate → Develop → Test → Iterate → Validate
+      
+      **Important Guidelines:**
+      - Be willing to try multiple different approaches even if the first one works
+      - Explore edge cases and potential failure modes
+      - Document your exploration process and reasoning
+      - Learn from mistakes and failed attempts - they have training value too
+
+      START YOUR CREATIVE SECURITY EXPLORATION NOW.
+
+    next_step_template: |-
+      OBSERVATION:
+      {{observation}}
+    next_step_no_output_template: |-
+      Your command ran successfully and did not produce any output.
+  tools:
+    execution_timeout: 900
+    env_variables:
+      PROJ_NAME: gstreamer
+      CVE_ID: CVE-2024-47606
+      PIPELINE_ROOT: /pipeline
+      BINARY_PATH: /pipeline/oss-fuzz/build/out/gstreamer/gst-pipeline-fuzzer
+      SANITIZERS: address
+      WINDOW: 100
+      OVERLAP: 2
+      CURRENT_LINE: 0
+      CURRENT_FILE: ""
+      SEARCH_RESULTS: ()
+      SEARCH_FILES: ()
+      SEARCH_INDEX: 0
+      PAGER: cat
+      MANPAGER: cat
+      LESS: -R
+      PIP_PROGRESS_BAR: 'off'
+      TQDM_DISABLE: '1'
+      GIT_PAGER: cat
+    bundles:
+      - path: tools/registry
+      - path: tools/edit_anthropic
+      - path: tools/review_on_submit_m
+      - path: tools/setup_build_environment
+      - path: tools/build_project
+      - path: tools/trigger_vulnerability
+      - path: tools/apply_patch
+    registry_variables:
+      USE_FILEMAP: 'true'
+      USE_LINTER: 'false'
+    enable_bash_tool: false
+    parse_function:
+      type: function_calling
+  history_processors:
+    - type: last_n_observations
+      n: 5
+  model:
+    name: gemini/gemini-2.5-flash
+    api_key: $GEMINI_API_KEY
+    per_instance_cost_limit: 8.0
+    per_instance_call_limit: 0
+    temperature: 0.7
+    delay: 1.0
+    completion_kwargs:
+      reasoning_effort: "high"
+
+env:
+  deployment:
+    type: docker
+    image: localhost/swerex-podman-remote
+    docker_args:
+      - "-v"
+      - "/home/collins/projects/meson-vuln-pipeline/projects/gstreamer/source:/source"
+      - "-v"
+      - "/home/collins/projects/meson-vuln-pipeline:/pipeline"
+      - "-v"
+      - "/run/user/1000/podman/podman.sock:/run/podman/podman.sock"
+      - "-e"
+      - "CONTAINER_HOST=unix:///run/podman/podman.sock"
+      - "-e"
+      - "HOST_PIPELINE_ROOT=/home/collins/projects/meson-vuln-pipeline"
+      - "-e"
+      - "PROJ_NAME=gstreamer"
+      - "-e"
+      - "CVE_ID=CVE-2024-47606"
+      - "-e"
+      - "PIPELINE_ROOT=/pipeline"
+      - "-e"
+      - "BINARY_PATH=/pipeline/oss-fuzz/build/out/gstreamer/gst-pipeline-fuzzer"
+      - "-e"
+      - "SANITIZERS=address"
+  repo:
+    type: preexisting
+    repo_name: source
+    base_commit: 1.24.9

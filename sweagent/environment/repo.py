@@ -71,6 +71,31 @@ class PreExistingRepoConfig(BaseModel):
         return []
 
 
+class PipelineRepoConfig(BaseModel):
+    """Use this for pipeline-based workflows that don't follow standard git repository patterns.
+    This skips all git operations and repository management.
+    """
+
+    repo_name: str = "pipeline"
+    """The working directory name. Defaults to 'pipeline'."""
+    
+    base_commit: str = "N/A"
+    """Not used in pipeline mode, but required by SWE-agent interface."""
+    
+    type: Literal["pipeline"] = "pipeline"
+    """Discriminator for (de)serialization/CLI. Do not change."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    def copy(self, deployment: AbstractDeployment):
+        """Does nothing - assumes pipeline environment is already set up via mounts."""
+        pass
+
+    def get_reset_commands(self) -> list[str]:
+        """No git operations for pipeline mode."""
+        return []
+
+
 class LocalRepoConfig(BaseModel):
     path: Path
     base_commit: str = Field(default="HEAD")
@@ -105,10 +130,11 @@ class LocalRepoConfig(BaseModel):
 
     def copy(self, deployment: AbstractDeployment):
         self.check_valid_repo()
+        target_path = f"/{self.repo_name}"
         asyncio.run(
-            deployment.runtime.upload(UploadRequest(source_path=str(self.path), target_path=f"/{self.repo_name}"))
+            deployment.runtime.upload(UploadRequest(source_path=str(self.path), target_path=target_path))
         )
-        r = asyncio.run(deployment.runtime.execute(Command(command=f"chown -R root:root {self.repo_name}", shell=True)))
+        r = asyncio.run(deployment.runtime.execute(Command(command=f"chown -R root:root {target_path}", shell=True)))
         if r.exit_code != 0:
             msg = f"Failed to change permissions on copied repository (exit code: {r.exit_code}, stdout: {r.stdout}, stderr: {r.stderr})"
             raise RuntimeError(msg)
@@ -186,11 +212,11 @@ class GithubRepoConfig(BaseModel):
         return _get_git_reset_commands(self.base_commit)
 
 
-RepoConfig = LocalRepoConfig | GithubRepoConfig | PreExistingRepoConfig
+RepoConfig = LocalRepoConfig | GithubRepoConfig | PreExistingRepoConfig | PipelineRepoConfig
 
 
 def repo_from_simplified_input(
-    *, input: str, base_commit: str = "HEAD", type: Literal["local", "github", "preexisting", "auto"] = "auto"
+    *, input: str, base_commit: str = "HEAD", type: Literal["local", "github", "preexisting", "pipeline", "auto"] = "auto"
 ) -> RepoConfig:
     """Get repo config from a simplified input.
 
@@ -205,6 +231,8 @@ def repo_from_simplified_input(
         return GithubRepoConfig(github_url=input, base_commit=base_commit)
     if type == "preexisting":
         return PreExistingRepoConfig(repo_name=input, base_commit=base_commit)
+    if type == "pipeline":
+        return PipelineRepoConfig(repo_name=input)
     if type == "auto":
         if input.startswith("https://github.com/"):
             return GithubRepoConfig(github_url=input, base_commit=base_commit)

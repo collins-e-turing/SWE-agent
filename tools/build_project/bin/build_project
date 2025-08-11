@@ -1,106 +1,98 @@
 #!/usr/bin/env bash
-set -euo pipefail          # safer bash
+set -euo pipefail
 
 ###############################################################################
-# 0. Usage & basic checks
+# Build Project Tool - Delegates to pipeline Makefile
+# Follows architectural principle: Tools orchestrate, Makefile implements
 ###############################################################################
+
 if [[ $# -ne 1 ]]; then
-  echo "Usage: build_${PROJ_NAME} <source_code_path>"
+  echo "Usage: build_project <source_code_path>"
   exit 1
 fi
 
 SOURCE_PATH="$1"
-PATCH_DIR="/pipeline/projects/${PROJ_NAME}/vulnerabilities/${CVE_ID}/patch"
-OSSFUZZ_PATCH="/pipeline/projects/${PROJ_NAME}/vulnerabilities/${CVE_ID}/oss-fuzz_patch.diff"
+
+# Validate required environment variables
+if [[ -z "${PROJ_NAME:-}" ]]; then
+  echo "Error: PROJ_NAME environment variable not set"
+  exit 1
+fi
+
+if [[ -z "${CVE_ID:-}" ]]; then
+  echo "Error: CVE_ID environment variable not set"
+  exit 1
+fi
+
+if [[ -z "${PIPELINE_ROOT:-}" ]]; then
+  echo "Error: PIPELINE_ROOT environment variable not set"
+  exit 1
+fi
+
+if [[ -z "${BINARY_PATH:-}" ]]; then
+  echo "Error: BINARY_PATH environment variable not set"
+  exit 1
+fi
 
 if [[ ! -d "$SOURCE_PATH" ]]; then
   echo "Error: Source path '$SOURCE_PATH' does not exist"
   exit 1
 fi
 
-echo "==> Building ${PROJ_NAME} from source: $SOURCE_PATH"
+echo "🔧 Building ${PROJ_NAME} from source: $SOURCE_PATH"
+echo "📁 Pipeline root: ${PIPELINE_ROOT}"
 
 ###############################################################################
-# 1. Apply project patches (only if repo clean *and* patches exist)
+# Pre-cache OSS-Fuzz images on first run to improve performance
 ###############################################################################
-cd "$SOURCE_PATH"
-git checkout "$PROJ_COMMIT"
-
-# Check for dirtiness *before* any modifications
-if git diff --quiet && git diff --cached --quiet; then
-  mapfile -t PATCH_FILES < <(find "$PATCH_DIR" -type f \( -name '*.patch' -o -name '*.diff' \))
-  if ((${#PATCH_FILES[@]})); then
-    echo "==> Applying ${#PATCH_FILES[@]} patch(es)"
-    for pf in "${PATCH_FILES[@]}"; do
-      git apply "$pf"
-      printf '🩹  Applied: %s\n' "${pf##*/}"
-    done
-  else
-    echo "==> No *.patch / *.diff found – skipping patch step"
-  fi
-else
-  echo "==> Repo dirty – skipping all patch application"
-fi
-
-# Copy over every non-patch artefact (config files, helpers, etc.)
-echo "==> Copying extra artefacts from patch dir"
-find "$PATCH_DIR" -type f ! \( -name '*.patch' -o -name '*.diff' \) -print0 |
-while IFS= read -r -d '' file; do
-  rel="${file#$PATCH_DIR/}"
-  dest="$SOURCE_PATH/$rel"
-  mkdir -p "$(dirname "$dest")"
-  cp -p "$file" "$dest"
-  printf '✔️  Copied: %s → %s\n' "$rel" "${dest#$SOURCE_PATH/}"
-done
-
-###############################################################################
-# 2. Python/virtual-env + orchestrator bootstrap
-###############################################################################
-cd /pipeline
-rm -rf "projects/${PROJ_NAME}/orchestrator/.venv"
-
-make install-uv
-export PATH=/root/.local/bin:$PATH
-make "venv-${PROJ_NAME}"
-source "projects/${PROJ_NAME}/orchestrator/.venv/bin/activate"
-
-###############################################################################
-# 3. oss-fuzz patch (same clean-repo guard)
-###############################################################################
-cd oss-fuzz
-git stash -q        # ignore if nothing to stash
-git checkout "$OSS_FUZZ_COMMIT"
-
-if git diff --quiet && git diff --cached --quiet && [[ -f "$OSSFUZZ_PATCH" ]]; then
-  echo "==> Applying oss-fuzz patch"
-  git apply "$OSSFUZZ_PATCH"
-else
-  echo "==> Skipping oss-fuzz patch (repo dirty or patch missing)"
+if [[ -x "/cache-ossfuzz-images.sh" ]]; then
+  /cache-ossfuzz-images.sh
 fi
 
 ###############################################################################
-# 4. Snapshot build
+# Delegate to pipeline Makefile with proper parameter passing
 ###############################################################################
-# Refresh project source inside oss-fuzz tree
-rm -rf "projects/${PROJ_NAME}/source"
-mkdir -p "projects/${PROJ_NAME}/source"
-cp -r "$SOURCE_PATH"/* "projects/${PROJ_NAME}/source/"
+cd "${PIPELINE_ROOT}"
 
-cd /pipeline
-make "snapshot-${PROJ_NAME}" SAN="$SANITIZERS" >build.log 2>&1
+# Set environment for make
+export SOURCE_DIR="${PIPELINE_ROOT}/projects/${PROJ_NAME}/source"
+export CVE_ID="$CVE_ID"
+export SAN="${SANITIZERS:-address}"
 
-tail -n 30 build.log
+# Delegate build to existing pipeline infrastructure
+echo "🔧 Delegating to pipeline: make snapshot-${PROJ_NAME}"
+
+# Capture both output and exit code properly, but avoid immediate exit that could destabilize container
+BUILD_SUCCESS=true
+if make "snapshot-${PROJ_NAME}" 2>&1 | tee build.log; then
+  echo "✅ Build succeeded"
+  echo "📋 Build completed. Recent output:"
+  tail -n 20 build.log
+else
+  BUILD_EXIT_CODE=$?
+  BUILD_SUCCESS=false
+  echo "❌ Build failed with exit code: $BUILD_EXIT_CODE"
+  echo "📋 Build error output (last 50 lines):"
+  tail -n 50 build.log
+  echo "📋 Full build log saved to: build.log"
+  echo "TOOL_STATUS:FAILED:$BUILD_EXIT_CODE"
+fi
 
 ###############################################################################
-# 5. Export binary path & verify
+# Validate binary exists and report status
 ###############################################################################
-BINARY_VAR_NAME="${PROJ_NAME}_BINARY_PATH"
-export "${BINARY_VAR_NAME}=${BINARY_PATH}"
-
-if [[ -e "${!BINARY_VAR_NAME}" ]]; then
-  echo "Binary ready at: ${!BINARY_VAR_NAME}"
+if [[ "$BUILD_SUCCESS" == "true" ]] && [[ -e "$BINARY_PATH" ]]; then
+  echo "✅ Binary ready at: $BINARY_PATH"
+  echo "BUILD_RESULT:SUCCESS"
   exit 0
+elif [[ "$BUILD_SUCCESS" == "false" ]]; then
+  echo "❌ BUILD FAILED – make command returned error code"
+  echo "Check build.log for details. Tool completed without container termination."
+  echo "BUILD_RESULT:FAILED"
+  exit 0  # Exit 0 to avoid container EOF, let agent handle via output parsing
 else
-  echo "DOCKER ERROR – binary not found at ${!BINARY_VAR_NAME}"
-  exit 1
+  echo "❌ BINARY ERROR – build succeeded but binary not found at $BINARY_PATH"
+  echo "Check build.log for details"
+  echo "BUILD_RESULT:BINARY_MISSING"
+  exit 0  # Exit 0 to avoid container EOF, let agent handle via output parsing
 fi

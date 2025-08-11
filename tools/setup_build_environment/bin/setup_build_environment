@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+###############################################################################
+# Setup Build Environment Tool - Delegates to pipeline Makefile
+# Handles environment patches that need to run once per CVE validation session
+###############################################################################
+
+echo "🔧 Setting up build environment for ${PROJ_NAME} CVE ${CVE_ID}"
+echo "📁 Pipeline root: ${PIPELINE_ROOT}"
+
+###############################################################################
+# Delegate to pipeline Makefile for environment setup
+###############################################################################
+cd "${PIPELINE_ROOT}"
+
+# Delegate environment patching to existing pipeline infrastructure
+echo "🔧 Delegating to pipeline: make patch-env-${PROJ_NAME}"
+make "patch-env-${PROJ_NAME}" CVE_ID="$CVE_ID" 2>&1 | tee env-setup.log
+
+# Show recent setup output for visibility
+echo "📋 Environment setup completed. Recent output:"
+tail -n 10 env-setup.log
+
+echo "✅ Build environment ready for ${PROJ_NAME} CVE ${CVE_ID}"

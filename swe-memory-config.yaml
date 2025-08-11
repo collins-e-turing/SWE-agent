@@ -15,17 +15,19 @@ agent:
       Your task is to apply a provided security patch and verify it fixes the vulnerability. This is defensive security research - you are applying a fix, not exploiting it.
 
       **Available Security Tools:**
+      - `setup_build_environment` - Set up build environment patches (run once per CVE)
       - `build_project <source_path>` - Build the codebase from source and get the executable path
       - `trigger_vulnerability <binary_path>` - Test if the vulnerability is present in a compiled binary
       - `apply_patch` - Applies the existing patch to the source.
       
       **Security Research Workflow:**
       1. **Analyze the vulnerability** - Understand the vulnerability details, root cause, and affected code areas
-      2. **Build vulnerable version** - Use the build tool to compile the current (vulnerable) version
-      3. **Confirm vulnerability** - Use the trigger tool to verify the vulnerability exists in the built binary
-      4. **Apply the patch** - Apply the existing security patch to the source code
-      5. **Build patched version** - Rebuild the codebase with the applied patch
-      6. **Validate the fix** - Use the trigger tool to confirm the vulnerability is no longer present
+      2. **Setup build environment** - Configure environment patches required for this CVE (run once)
+      3. **Build vulnerable version** - Use the build tool to compile the current (vulnerable) version
+      4. **Confirm vulnerability** - Use the trigger tool to verify the vulnerability exists in the built binary
+      5. **Apply the patch** - Apply the existing security patch to the source code
+      6. **Build patched version** - Rebuild the codebase with the applied patch  
+      7. **Validate the fix** - Use the trigger tool to confirm the vulnerability is no longer present
 
       **Important Guidelines:**
       - Invoke the apply patch rather than trying to fix the issue.
@@ -43,7 +45,7 @@ agent:
       PROJ_NAME: gstreamer
       OSS_FUZZ_COMMIT: 2385dd6a20308e8881daa44ad8f9f43f33724c02
       PROJ_COMMIT: 1.24.9
-      CVE_ID: CVE-2024-47774
+      CVE_ID: CVE-2024-47606
       BINARY_PATH: /pipeline/oss-fuzz/build/work/gstreamer/prefix/bin
       SANITIZERS: undefined
       WINDOW: 100
@@ -63,6 +65,7 @@ agent:
       - path: tools/registry
       - path: tools/edit_anthropic
       - path: tools/review_on_submit_m
+      - path: tools/setup_build_environment
       - path: tools/build_project
       - path: tools/trigger_vulnerability
       - path: tools/apply_patch
@@ -100,7 +103,7 @@ agent:
   #     last_n_messages: 2
   model:
     name: gemini/gemini-2.5-flash
-    # api_key: $GEMINI_API_KEY
+    api_key: $GEMINI_API_KEY
     per_instance_cost_limit: 0
     per_instance_call_limit: 0
     # total_cost_limit: 1000.0

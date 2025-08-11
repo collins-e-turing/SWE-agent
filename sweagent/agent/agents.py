@@ -12,7 +12,7 @@ import yaml
 from jinja2 import Template
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from simple_parsing.helpers.fields import field
-from swerex.exceptions import BashIncorrectSyntaxError, CommandTimeoutError, SwerexException
+from swerex.exceptions import BashIncorrectSyntaxError, CommandTimeoutError, NonZeroExitCodeError, SwerexException
 from tenacity import RetryError
 from typing_extensions import Self
 from unidiff import UnidiffParseError
@@ -1187,6 +1187,15 @@ class DefaultAgent(AbstractAgent):
                 return handle_error_with_autosubmission(
                     "exit_api",
                     f"Exit due to retry error: {e}",
+                )
+            except NonZeroExitCodeError as e:
+                # Tool execution failed but this is not an environment error - let agent retry
+                self.logger.warning(f"Tool execution failed with non-zero exit code: {e}")
+                n_format_fails += 1
+                history = handle_error_with_retry(
+                    exception=e,
+                    template=self.templates.next_step_template,
+                    n_requeries=n_format_fails,
                 )
             except SwerexException as e:
                 self.logger.exception(f"Exiting due to environment error: {e}", exc_info=True)

@@ -1,0 +1,6 @@
+tools:
+  setup_build_environment:
+    signature: "setup_build_environment"
+    docstring: "Set up build environment patches for CVE validation. Must be run once per CVE before building. Handles OSS-Fuzz and GStreamer environment patches."
+    arguments: []
+state_command: "_state_setup_build_environment"

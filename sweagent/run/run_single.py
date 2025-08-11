@@ -186,29 +186,47 @@ class RunSingle:
         self._chooks.add_hook(hook)
 
     def run(self):
-        self._chooks.on_start()
-        self.logger.info("Starting environment")
-        self.env.start()
-        self.logger.info("Running agent")
-        self._chooks.on_instance_start(index=0, env=self.env, problem_statement=self.problem_statement)
-        output_dir = self.output_dir / self.problem_statement.id
-        output_dir.mkdir(parents=True, exist_ok=True)
-        if self.agent.replay_config is not None:  # type: ignore[attr-defined]
-            (output_dir / "config.yaml").write_text(yaml.dump(self.agent.replay_config.model_dump_json(), indent=2))  # type: ignore[attr-defined]
-        result = self.agent.run(
-            problem_statement=self.problem_statement,
-            env=self.env,
-            output_dir=output_dir,
-        )
-        self._chooks.on_instance_completed(result=result)
-        self.logger.info("Done")
-        self._chooks.on_end()
-        save_predictions(self.output_dir, self.problem_statement.id, result)
-        self.env.close()
+        try:
+            self._chooks.on_start()
+            self.logger.info("Starting environment")
+            self.env.start()
+            self.logger.info("Running agent")
+            self._chooks.on_instance_start(index=0, env=self.env, problem_statement=self.problem_statement)
+            output_dir = self.output_dir / self.problem_statement.id
+            output_dir.mkdir(parents=True, exist_ok=True)
+            if self.agent.replay_config is not None:  # type: ignore[attr-defined]
+                (output_dir / "config.yaml").write_text(yaml.dump(self.agent.replay_config.model_dump_json(), indent=2))  # type: ignore[attr-defined]
+            result = self.agent.run(
+                problem_statement=self.problem_statement,
+                env=self.env,
+                output_dir=output_dir,
+            )
+            self._chooks.on_instance_completed(result=result)
+            self.logger.info("Done")
+            self._chooks.on_end()
+            save_predictions(self.output_dir, self.problem_statement.id, result)
+        except Exception as e:
+            # Ensure environment is closed even if there's an error
+            try:
+                self.env.close()
+            except:
+                pass
+            # Re-raise the exception to propagate the error
+            raise
+        finally:
+            # Always attempt to close the environment
+            try:
+                self.env.close()
+            except:
+                pass
 
 
 def run_from_config(config: RunSingleConfig):
-    RunSingle.from_config(config).run()
+    try:
+        RunSingle.from_config(config).run()
+    except Exception as e:
+        # Re-raise the exception to ensure it propagates for proper exit code handling
+        raise
 
 
 def run_from_cli(args: list[str] | None = None):
@@ -218,7 +236,11 @@ def run_from_cli(args: list[str] | None = None):
     help_text = (  # type: ignore
         __doc__ + "\n[cyan][bold]=== ALL THE OPTIONS ===[/bold][/cyan]\n\n" + ConfigHelper().get_help(RunSingleConfig)
     )
-    run_from_config(BasicCLI(RunSingleConfig, help_text=help_text).get_config(args))  # type: ignore
+    try:
+        run_from_config(BasicCLI(RunSingleConfig, help_text=help_text).get_config(args))  # type: ignore
+    except Exception as e:
+        # Re-raise the exception to ensure it propagates to main() for proper exit code handling
+        raise
 
 
 if __name__ == "__main__":
